@@ -1,0 +1,148 @@
+name: "Harnest Canary"
+description: "Validate harnest chick structure, schema, naming conventions, and workflow completeness on pull requests."
+author: "gioperalto"
+
+branding:
+  icon: "check-circle"
+  color: "yellow"
+
+inputs:
+  targets:
+    description: "Comma-separated chick names to validate (empty = auto-detect changed chicks in PR)"
+    required: false
+    default: ""
+  nest-root:
+    description: "Path to the directory containing chick subdirectories (default: ./nest)"
+    required: false
+    default: "nest"
+  base-ref:
+    description: "Git ref to diff against for change detection (default: origin/main)"
+    required: false
+    default: ""
+  enable-otel:
+    description: "Enable OTel observer (requires Jaeger sidecar or DD_API_KEY secret)"
+    required: false
+    default: "false"
+  post-comment:
+    description: "Post canary report as a PR comment"
+    required: false
+    default: "true"
+  fail-on-error:
+    description: "Fail the workflow step if any checkpoint fails"
+    required: false
+    default: "true"
+
+outputs:
+  result:
+    description: "Overall result: PASS or FAIL"
+    value: ${{ steps.run.outputs.result }}
+  report-path:
+    description: "Path to the generated canary report"
+    value: ${{ steps.run.outputs.report_path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install canary
+      shell: bash
+      run: pip install "${{ github.action_path }}"
+
+    - name: Resolve base ref
+      id: ref
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.base-ref }}" ]; then
+          echo "base_ref=${{ inputs.base-ref }}" >> "$GITHUB_OUTPUT"
+        elif [ -n "${{ github.base_ref }}" ]; then
+          echo "base_ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "base_ref=origin/main" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Build canary args
+      id: args
+      shell: bash
+      run: |
+        ARGS=""
+        if [ -n "${{ inputs.targets }}" ]; then
+          # Convert comma-separated to space-separated
+          TARGETS=$(echo "${{ inputs.targets }}" | tr ',' ' ')
+          ARGS="--targets $TARGETS"
+        else
+          ARGS="--changed-only --base-ref ${{ steps.ref.outputs.base_ref }}"
+        fi
+        ARGS="$ARGS --nest-root ${{ inputs.nest-root }}"
+        if [ "${{ inputs.enable-otel }}" != "true" ]; then
+          ARGS="$ARGS --no-otel"
+        fi
+        if [ "${{ inputs.fail-on-error }}" == "true" ]; then
+          ARGS="$ARGS --exit-code"
+        fi
+        echo "canary_args=$ARGS" >> "$GITHUB_OUTPUT"
+
+    - name: Run canary
+      id: run
+      shell: bash
+      run: |
+        set +e
+        REPORT_PATH=".harnest/canary-report.md"
+        canary ${{ steps.args.outputs.canary_args }} --report-path "$REPORT_PATH" 2>&1
+        EXIT_CODE=$?
+        echo "report_path=$REPORT_PATH" >> "$GITHUB_OUTPUT"
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "result=PASS" >> "$GITHUB_OUTPUT"
+        else
+          echo "result=FAIL" >> "$GITHUB_OUTPUT"
+        fi
+        # Store exit code for the gating step
+        echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+    - name: Generate PR comment
+      if: inputs.post-comment == 'true' && github.event_name == 'pull_request'
+      id: comment
+      shell: bash
+      run: |
+        canary ${{ steps.args.outputs.canary_args }} --no-otel --pr-comment > /tmp/canary-comment.md 2>/dev/null
+
+    - name: Post PR comment
+      if: inputs.post-comment == 'true' && github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const body = fs.readFileSync('/tmp/canary-comment.md', 'utf8');
+          const marker = '<!-- canary-report -->';
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          const existing = comments.find(c => c.body.includes(marker));
+          const fullBody = `${marker}\n${body}`;
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body: fullBody,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: fullBody,
+            });
+          }
+
+    - name: Gate on result
+      if: steps.run.outputs.exit_code != '0' && inputs.fail-on-error == 'true'
+      shell: bash
+      run: |
+        echo "::error::Canary validation failed — see report for details"
+        exit 1

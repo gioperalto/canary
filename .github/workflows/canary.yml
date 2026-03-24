@@ -6,6 +6,7 @@ on:
       - "nest/**"
       - "src/canary/**"
       - "harnest.yaml"
+      - "action.yml"
   workflow_dispatch:
     inputs:
       targets:
@@ -28,7 +29,6 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      # Jaeger sidecar — only started when OTel is requested
       jaeger:
         image: ${{ (github.event_name == 'workflow_dispatch' && inputs.enable_otel) && 'jaegertracing/all-in-one:latest' || '' }}
         ports:
@@ -37,8 +37,6 @@ jobs:
           - 4318:4318
 
     env:
-      CLAUDE_CODE_ENABLE_TELEMETRY: ${{ (github.event_name == 'workflow_dispatch' && inputs.enable_otel) && '1' || '0' }}
-      # Datadog: pass DD_API_KEY and DD_SITE as repository secrets if desired
       DD_API_KEY: ${{ secrets.DD_API_KEY }}
       DD_SITE: ${{ secrets.DD_SITE }}
 
@@ -46,79 +44,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # full history for --changed-only diff
+          fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      # Dogfood: use the local action.yml from this repo
+      - name: Run canary
+        uses: ./
         with:
-          python-version: "3.12"
-
-      - name: Install canary
-        run: pip install -e ".[otel]"
-
-      - name: Detect targets
-        id: targets
-        run: |
-          if [ -n "${{ inputs.targets }}" ]; then
-            echo "args=--targets ${{ inputs.targets }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "args=--changed-only --base-ref origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Run canary validation
-        id: canary
-        run: |
-          set +e
-          OTEL_FLAG=""
-          if [ "$CLAUDE_CODE_ENABLE_TELEMETRY" != "1" ] && [ -z "$DD_API_KEY" ]; then
-            OTEL_FLAG="--no-otel"
-          fi
-          canary ${{ steps.targets.outputs.args }} $OTEL_FLAG --exit-code --report-path .harnest/canary-report.md 2>&1 | tee /tmp/canary-stderr.txt
-          CANARY_EXIT=$?
-          echo "exit_code=$CANARY_EXIT" >> "$GITHUB_OUTPUT"
-          exit 0  # don't fail the step yet — we want to post the comment first
-
-      - name: Generate PR comment
-        if: github.event_name == 'pull_request'
-        id: comment
-        run: |
-          COMMENT=$(canary ${{ steps.targets.outputs.args }} --no-otel --pr-comment 2>/dev/null)
-          # Write to file to avoid shell escaping issues
-          echo "$COMMENT" > /tmp/canary-comment.md
-
-      - name: Post PR comment
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const body = fs.readFileSync('/tmp/canary-comment.md', 'utf8');
-            const marker = '<!-- canary-report -->';
-
-            // Find existing canary comment to update (avoid duplicates)
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            const existing = comments.find(c => c.body.includes(marker));
-
-            const fullBody = `${marker}\n${body}`;
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body: fullBody,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: fullBody,
-              });
-            }
+          targets: ${{ inputs.targets || '' }}
+          enable-otel: ${{ (github.event_name == 'workflow_dispatch' && inputs.enable_otel) && 'true' || 'false' }}
 
       - name: Upload report artifact
         if: always()
@@ -127,9 +60,3 @@ jobs:
           name: canary-report
           path: .harnest/canary-report.md
           if-no-files-found: ignore
-
-      - name: Gate on canary result
-        if: steps.canary.outputs.exit_code != '0'
-        run: |
-          echo "::error::Canary validation failed — see report for details"
-          exit 1
