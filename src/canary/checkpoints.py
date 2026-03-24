@@ -86,8 +86,8 @@ REQUIRED_FILES = [
 ]
 
 REQUIRED_DIRS = [
-    ".claude/settings.json",
-    ".claude/agents",
+    "claude/settings.json",
+    "claude/agents",
 ]
 
 
@@ -101,17 +101,17 @@ def _cp1_file_presence(chick_root: Path) -> tuple[Status, list[str]]:
         if not (chick_root / f).is_file():
             errors.append(f"Missing file: {f}")
 
-    settings = chick_root / ".claude" / "settings.json"
+    settings = chick_root / "claude" / "settings.json"
     if not settings.is_file():
-        errors.append("Missing file: .claude/settings.json")
+        errors.append("Missing file: claude/settings.json")
 
-    agents_dir = chick_root / ".claude" / "agents"
+    agents_dir = chick_root / "claude" / "agents"
     if not agents_dir.is_dir():
-        errors.append("Missing directory: .claude/agents/")
+        errors.append("Missing directory: claude/agents/")
     else:
         agent_files = list(agents_dir.glob("*.md"))
         if not agent_files:
-            errors.append("No agent .md files in .claude/agents/")
+            errors.append("No agent .md files in claude/agents/")
 
     return (Status.FAIL if errors else Status.PASS), errors
 
@@ -153,10 +153,10 @@ def _cp2_yaml_schema(chick_root: Path) -> tuple[Status, list[str]]:
             # Verify agent_file exists
             af = agent.get("agent_file")
             if af:
-                agent_path = chick_root / ".claude" / "agents" / af
+                agent_path = chick_root / "claude" / "agents" / af
                 if not agent_path.is_file():
                     errors.append(
-                        f"agents.{name}.agent_file: '{af}' not found in .claude/agents/"
+                        f"agents.{name}.agent_file: '{af}' not found in claude/agents/"
                     )
 
     # workflow section
@@ -180,7 +180,7 @@ REQUIRED_FRONTMATTER = {"name", "description", "model", "tools"}
 
 def _cp3_agent_frontmatter(chick_root: Path) -> tuple[Status, list[str]]:
     errors: list[str] = []
-    agents_dir = chick_root / ".claude" / "agents"
+    agents_dir = chick_root / "claude" / "agents"
 
     if not agents_dir.is_dir():
         return Status.FAIL, ["agents directory missing — skipped"]
@@ -267,7 +267,7 @@ def _cp5_naming_conventions(chick_root: Path) -> tuple[Status, list[str]]:
                 errors.append(f"Agent key '{key}' is not snake_case")
 
     # Agent file names must be kebab-case
-    agents_dir = chick_root / ".claude" / "agents"
+    agents_dir = chick_root / "claude" / "agents"
     if agents_dir.is_dir():
         for md_file in agents_dir.glob("*.md"):
             if not KEBAB_RE.match(md_file.name):
@@ -294,7 +294,7 @@ def _cp6_cross_references(chick_root: Path) -> tuple[Status, list[str]]:
     if not cfg:
         return Status.FAIL, ["Cannot parse harnest.yaml for cross-reference check"]
 
-    agents_dir = chick_root / ".claude" / "agents"
+    agents_dir = chick_root / "claude" / "agents"
 
     # Every agent_file in harnest.yaml must exist
     for name, agent in cfg.get("agents", {}).items():
@@ -303,7 +303,7 @@ def _cp6_cross_references(chick_root: Path) -> tuple[Status, list[str]]:
             errors.append(f"agents.{name}.agent_file '{af}' does not exist")
 
     # MCP servers referenced in agent frontmatter must exist in settings.json
-    settings_path = chick_root / ".claude" / "settings.json"
+    settings_path = chick_root / "claude" / "settings.json"
     settings: dict[str, Any] = {}
     if settings_path.is_file():
         try:
@@ -325,7 +325,7 @@ def _cp6_cross_references(chick_root: Path) -> tuple[Status, list[str]]:
                 for ref in mcp_refs:
                     if ref not in configured_mcp:
                         errors.append(
-                            f"{md_file.name}: mcpServers '{ref}' not in .claude/settings.json"
+                            f"{md_file.name}: mcpServers '{ref}' not in claude/settings.json"
                         )
 
     return (Status.FAIL if errors else Status.PASS), errors

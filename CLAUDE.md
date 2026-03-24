@@ -41,7 +41,7 @@ Spawn the observer before validation begins. The observer:
 After the observer is ready, spawn the validator. The validator:
 1. Signals the observer that testing is about to begin
 2. Runs the 6-checkpoint validation checklist for each target chick:
-   - **Checkpoint 1**: Setup — file presence (harnest.yaml, CLAUDE.md, README.md, settings.json, agent files)
+   - **Checkpoint 1**: Setup — file presence (harnest.yaml, CLAUDE.md, README.md, claude/settings.json, agent files)
    - **Checkpoint 2**: Structure — YAML schema (team, agents, workflow sections; required fields)
    - **Checkpoint 3**: Structure — agent frontmatter (name, description, model, tools, permissionMode, maxTurns)
    - **Checkpoint 4**: Structure — CLAUDE.md section order (title, Configuration, Team Structure, Workflow, Important Notes)
