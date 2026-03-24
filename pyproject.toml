@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "harnest-canary"
+version = "0.1.0"
+description = "Canary QA validator for harnest chicks"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0",
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+otel = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-http>=1.20",
+]
+
+[project.scripts]
+canary = "canary.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/canary"]

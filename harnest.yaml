@@ -1,0 +1,68 @@
+# harnest - Canary QA / Dogfooding Chick
+# Drop this config + .claude/ directory into any project to launch a canary validation team.
+#
+# The validator orchestrates end-to-end testing of other harnest chicks — checking structure,
+# schema, naming conventions, and workflow completeness. The observer monitors OpenTelemetry
+# telemetry in parallel, detecting anomalies and producing a health summary. Together they
+# produce a structured pass/fail report with a link to the OTel trace dashboard.
+#
+# Requires CLAUDE_CODE_ENABLE_TELEMETRY=1 for OTel export.
+# See README.md for Jaeger (local) and Datadog setup instructions.
+
+team:
+  name: canary
+  description: "Canary QA team: validator and observer running in parallel to test harnest chicks"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Agent Definitions
+# Each agent has a role, model, count, and description.
+# Models: opus | sonnet | haiku
+# The agent_file references .claude/agents/<name>.md
+# ──────────────────────────────────────────────────────────────────────────────
+agents:
+  validator:
+    model: sonnet
+    count: 1
+    agent_file: validator.md
+    description: >
+      Orchestrates test execution against target chicks (webpage, brainstorm). Validates
+      directory structure, YAML schema, agent frontmatter, naming conventions, and workflow
+      completeness. Collects the observer's health summary and writes the final canary-report.md.
+
+  observer:
+    model: haiku
+    count: 1
+    agent_file: observer.md
+    description: >
+      Monitors OpenTelemetry telemetry during chick validation. Verifies the OTel backend
+      is reachable, tracks agent lifecycle events, detects anomalies (timeouts, errors,
+      resource leaks), and produces a health summary for inclusion in the final report.
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Workflow Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+workflow:
+  # Observer starts monitoring before Validator begins test execution
+  observer_first: true
+
+  # Validator drives the test sequence; Observer runs alongside
+  parallel_execution: true
+
+  # Validator produces the final report after Observer sends health summary
+  validator_reports: true
+
+  # No worktrees — both agents work in the same directory
+  use_worktrees: false
+
+  # Branch prefix (if git branching is used during canary runs)
+  branch_prefix: "canary/"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Target Chicks
+# List of chick directory names (under nest/) to validate.
+# If empty or absent, canary auto-detects subdirectories of nest/ that contain
+# a harnest.yaml. In CI with --changed-only, only PR-touched chicks are tested.
+# ──────────────────────────────────────────────────────────────────────────────
+targets:
+  - webpage
+  - brainstorm

@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Local settings (may contain machine-specific paths or permissions)
+.claude/settings.local.json
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+secrets/
+
+# Generated reports (produced by canary runs)
+.harnest/canary-report.md
+
+# OS
+.DS_Store
+Thumbs.db

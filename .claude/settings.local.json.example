@@ -1,0 +1,21 @@
+{
+  "_comment": "Local overrides — copy this to settings.local.json and customize. This file is gitignored. DO NOT store API keys here — pass them as shell env vars instead.",
+  "env": {
+    "_comment": [
+      "OTel telemetry env vars — set these in your shell before running canary.",
+      "",
+      "Enable OTel export from Claude Code (required):",
+      "  export CLAUDE_CODE_ENABLE_TELEMETRY=1",
+      "",
+      "OTLP endpoint (default: local Jaeger on port 4318):",
+      "  export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318",
+      "  export OTEL_EXPORTER_OTLP_PROTOCOL=http",
+      "",
+      "Datadog backend (optional — overrides Jaeger if set):",
+      "  export DD_API_KEY=your-datadog-api-key",
+      "  export DD_SITE=datadoghq.com",
+      "",
+      "Then launch with: claude"
+    ]
+  }
+}
