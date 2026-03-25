@@ -73,7 +73,7 @@ def discover_changed_chicks(
     for line in result.stdout.strip().splitlines():
         if line.startswith(nest_prefix):
             parts = line[len(nest_prefix) :].split("/")
-            if parts:
+            if parts and (nest_root / parts[0]).is_dir():
                 chick_names.add(parts[0])
 
     return sorted(chick_names)
