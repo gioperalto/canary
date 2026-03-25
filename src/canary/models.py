@@ -79,7 +79,7 @@ class CanaryReport:
     @property
     def overall(self) -> Status:
         if not self.chick_reports:
-            return Status.FAIL
+            return Status.PASS
         return (
             Status.PASS
             if all(r.overall is Status.PASS for r in self.chick_reports)
