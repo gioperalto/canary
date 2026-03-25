@@ -36,13 +36,20 @@ def resolve_targets(
     if configured:
         return [(t, nest_root / t) for t in configured]
 
-    # Auto-detect chick directories
+    # Auto-detect chick directories (supports one level of grouping, e.g. nest/internal/chick)
     if nest_root.is_dir():
-        return [
-            (d.name, d)
-            for d in sorted(nest_root.iterdir())
-            if d.is_dir() and (d / "harnest.yaml").exists()
-        ]
+        results = []
+        for d in sorted(nest_root.iterdir()):
+            if not d.is_dir():
+                continue
+            if (d / "harnest.yaml").exists():
+                results.append((d.name, d))
+            else:
+                # Check one level deeper (group directory)
+                for sub in sorted(d.iterdir()):
+                    if sub.is_dir() and (sub / "harnest.yaml").exists():
+                        results.append((f"{d.name}/{sub.name}", sub))
+        return results
 
     return []
 
@@ -73,7 +80,11 @@ def discover_changed_chicks(
     for line in result.stdout.strip().splitlines():
         if line.startswith(nest_prefix):
             parts = line[len(nest_prefix) :].split("/")
-            if parts and (nest_root / parts[0]).is_dir():
-                chick_names.add(parts[0])
+            # Walk path components to find the chick directory (first one with harnest.yaml)
+            for depth in range(1, len(parts)):
+                candidate = nest_root.joinpath(*parts[:depth])
+                if (candidate / "harnest.yaml").exists():
+                    chick_names.add("/".join(parts[:depth]))
+                    break
 
     return sorted(chick_names)
