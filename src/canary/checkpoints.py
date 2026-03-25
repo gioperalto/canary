@@ -29,6 +29,7 @@ RECOGNIZED_FRONTMATTER_FIELDS = {
     "permissionMode",
     "maxTurns",
     "mcpServers",
+    "isolation",
 }
 
 VALID_PERMISSION_MODES = {"default", "acceptEdits", "bypassPermissions", "dontAsk", "auto", "plan"}
